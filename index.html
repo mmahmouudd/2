@@ -1,0 +1,743 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PrintForge B2B — Architecture Command Center</title>
+<script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+<script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+<style>
+  /* ============================================================
+     CENTRALIZED DESIGN TOKENS — Industrial B2B Palette
+     (No hardcoded random colors; all derived from tokens below)
+     ============================================================ */
+  :root{
+    /* Core Industrial Palette */
+    --ink-900:#0d1117;   /* deep graphite - base canvas */
+    --ink-800:#151b23;   /* panel */
+    --ink-700:#1c242e;   /* raised panel */
+    --ink-600:#26313d;   /* border strong */
+    --ink-500:#33404e;   /* border */
+    --steel-400:#5b6b7d; /* muted text */
+    --steel-300:#8 b9aad;
+    --steel-300:#8b9aad;
+    --steel-200:#b7c2ce; /* body text */
+    --steel-100:#e4e9ef; /* headings */
+
+    /* Signal / Industrial Accents */
+    --amber:#f5a623;     /* primary industrial accent (safety amber) */
+    --amber-dim:#7a5310;
+    --cyan:#2dd4bf;      /* data / active */
+    --cyan-dim:#0f4d47;
+    --violet:#8b7cf6;    /* automation / routing */
+    --red:#ef4444;       /* danger / rejected */
+    --red-dim:#5c1a1a;
+    --green:#34d399;     /* approved / published */
+    --green-dim:#15402f;
+    --blue:#4d94ff;      /* info */
+    --slate-line:#2a3542;
+
+    /* Spacing scale (data-dense) */
+    --sp-1:4px; --sp-2:8px; --sp-3:12px; --sp-4:16px; --sp-6:24px;
+
+    /* Radius */
+    --r-sm:4px; --r-md:6px; --r-lg:10px;
+
+    /* Type */
+    --font-mono:'SF Mono',ui-monospace,'Cascadia Code',Menlo,monospace;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;padding:0}
+  body{
+    background:
+      radial-gradient(900px 500px at 90% -10%, rgba(245,166,35,.06), transparent 60%),
+      radial-gradient(800px 500px at 0% 110%, rgba(45,212,191,.05), transparent 60%),
+      var(--ink-900);
+    color:var(--steel-200);
+    font-family:'Inter','Segoe UI',Tahoma,system-ui,sans-serif;
+    -webkit-font-smoothing:antialiased;
+  }
+  ::-webkit-scrollbar{width:10px;height:10px}
+  ::-webkit-scrollbar-track{background:var(--ink-900)}
+  ::-webkit-scrollbar-thumb{background:var(--ink-600);border-radius:6px;border:2px solid var(--ink-900)}
+  ::-webkit-scrollbar-thumb:hover{background:var(--steel-400)}
+
+  .mono{font-family:var(--font-mono)}
+  .panel{background:var(--ink-800);border:1px solid var(--ink-600);border-radius:var(--r-lg)}
+  .panel-raised{background:var(--ink-700);border:1px solid var(--ink-500);border-radius:var(--r-md)}
+  .hairline{border-color:var(--slate-line)}
+  .grid-bg{
+    background-image:
+      linear-gradient(var(--slate-line) 1px, transparent 1px),
+      linear-gradient(90deg, var(--slate-line) 1px, transparent 1px);
+    background-size:22px 22px;
+    background-position:center;
+  }
+  .tag{font-size:10px;letter-spacing:.06em;text-transform:uppercase;font-weight:700;padding:2px 7px;border-radius:var(--r-sm)}
+  .nav-item{transition:all .12s ease;border-inline-start:3px solid transparent}
+  .nav-item.active{background:var(--ink-700);border-inline-start-color:var(--amber);color:var(--steel-100)}
+  .nav-item:hover{background:var(--ink-700)}
+  .kbd{font-family:var(--font-mono);font-size:10px;background:var(--ink-600);border:1px solid var(--ink-500);border-bottom-width:2px;border-radius:4px;padding:1px 5px}
+  table.dg{width:100%;border-collapse:collapse;font-size:12.5px}
+  table.dg th{background:var(--ink-700);color:var(--steel-300);text-align:start;font-weight:600;font-size:10.5px;letter-spacing:.05em;text-transform:uppercase;padding:8px 10px;border-bottom:1px solid var(--ink-500);position:sticky;top:0}
+  table.dg td{padding:8px 10px;border-bottom:1px solid var(--slate-line);vertical-align:top}
+  table.dg tr:hover td{background:rgba(45,212,191,.03)}
+  .flow-node{background:var(--ink-700);border:1px solid var(--ink-500);border-radius:var(--r-md);padding:10px 12px;font-size:12px;position:relative}
+  .flow-arrow{color:var(--steel-400);font-size:20px;line-height:1}
+  details>summary{cursor:pointer;list-style:none}
+  details>summary::-webkit-details-marker{display:none}
+  .chip{display:inline-flex;align-items:center;gap:5px;font-size:11px;padding:3px 9px;border-radius:999px;border:1px solid var(--ink-500);background:var(--ink-700)}
+  [x-cloak]{display:none!important}
+  .glow-amber{box-shadow:0 0 0 1px rgba(245,166,35,.25),0 0 30px -8px rgba(245,166,35,.35)}
+  .fade-in{animation:fi .25s ease}
+  @keyframes fi{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+</style>
+</head>
+<body x-data="app()" x-cloak>
+
+<!-- ======================= TOP BAR ======================= -->
+<header class="sticky top-0 z-40 border-b" style="border-color:var(--ink-600);background:rgba(13,17,23,.85);backdrop-filter:blur(10px)">
+  <div class="flex items-center gap-3 px-4 h-14">
+    <div class="flex items-center gap-2.5">
+      <div class="w-8 h-8 rounded flex items-center justify-center font-black text-[13px]" style="background:linear-gradient(135deg,var(--amber),#d9820e);color:var(--ink-900)">PF</div>
+      <div class="leading-tight">
+        <div class="font-bold text-[13px]" style="color:var(--steel-100)">PrintForge<span style="color:var(--amber)">·</span>B2B</div>
+        <div class="mono text-[9.5px]" style="color:var(--steel-400)">HEADLESS COMMERCE · ARCH COMMAND CENTER</div>
+      </div>
+    </div>
+    <div class="mx-4 h-6 w-px" style="background:var(--ink-600)"></div>
+    <div class="hidden md:flex items-center gap-1.5 text-[11px]" style="color:var(--steel-400)">
+      <span class="chip"><span style="color:var(--green)">●</span> RFQ-Driven</span>
+      <span class="chip"><span style="color:var(--cyan)">●</span> Multi-Tenant</span>
+      <span class="chip"><span style="color:var(--violet)">●</span> Micro-RBAC</span>
+    </div>
+    <div class="ms-auto flex items-center gap-2">
+      <div class="hidden lg:flex items-center gap-1 text-[10px] mono" style="color:var(--steel-400)">
+        <span class="kbd">v1.0</span><span>ARCHITECTURE BLUEPRINT</span>
+      </div>
+      <button @click="exportJSON()" class="text-[11px] font-semibold px-3 py-1.5 rounded flex items-center gap-1.5"
+        style="background:var(--ink-700);border:1px solid var(--ink-500);color:var(--steel-100)">
+        ⬇ Export JSON
+      </button>
+      <button @click="printView()" class="text-[11px] font-semibold px-3 py-1.5 rounded"
+        style="background:var(--amber);color:var(--ink-900)">Print / PDF</button>
+    </div>
+  </div>
+</header>
+
+<div class="flex">
+  <!-- ======================= SIDEBAR ======================= -->
+  <aside class="hidden md:flex flex-col shrink-0 w-60 border-e sticky top-14 self-start" style="height:calc(100vh - 56px);border-color:var(--ink-600);background:var(--ink-800)">
+    <nav class="flex-1 overflow-y-auto py-3">
+      <template x-for="(sec,i) in nav" :key="sec.id">
+        <button @click="go(sec.id)"
+          class="nav-item w-full flex items-center gap-3 px-4 py-2.5 text-[13px] text-start"
+          :class="active===sec.id?'active':''" style="color:var(--steel-200)">
+          <span class="w-6 text-center text-[15px]" x-text="sec.icon"></span>
+          <span class="flex-1" x-text="sec.label"></span>
+          <span class="mono text-[10px]" style="color:var(--steel-400)" x-text="String(i+1).padStart(2,'0')"></span>
+        </button>
+      </template>
+    </nav>
+    <div class="p-3 border-t text-[10px] mono" style="border-color:var(--ink-600);color:var(--steel-400)">
+      <div class="flex justify-between mb-1"><span>EPICS</span><span style="color:var(--amber)" x-text="stats.epics"></span></div>
+      <div class="flex justify-between mb-1"><span>TASKS</span><span style="color:var(--cyan)" x-text="stats.tasks"></span></div>
+      <div class="flex justify-between"><span>EDGE CASES</span><span style="color:var(--violet)" x-text="stats.edge"></span></div>
+    </div>
+  </aside>
+
+  <!-- ======================= MAIN ======================= -->
+  <main class="flex-1 min-w-0 px-4 md:px-8 py-6 max-w-[1400px]">
+
+    <!-- ============ 0. OVERVIEW ============ -->
+    <section x-show="active==='overview'" class="fade-in space-y-6">
+      <div class="panel p-6 grid-bg relative overflow-hidden">
+        <div class="relative">
+          <span class="tag" style="background:var(--amber-dim);color:var(--amber)">SYSTEM BRIEF</span>
+          <h1 class="text-2xl md:text-3xl font-black mt-3" style="color:var(--steel-100)">
+            Headless B2B Commerce for <span style="color:var(--amber)">Print Machinery, Bulk Inks &amp; Software</span>
+          </h1>
+          <p class="mt-2 max-w-3xl text-[13.5px]" style="color:var(--steel-300)">
+            منصة RFQ-first متعددة المستأجرين (Multi-tenant) بواجهة Headless. المحرك الأساسي هو دورة طلب التسعير (RFQ)
+            وليس الدفع المباشر، مع طبقات صلاحيات دقيقة (Micro-RBAC)، عزل بائعين، ومسار مسودة/نشر إلزامي.
+          </p>
+        </div>
+        <div class="grid grid-cols-2 md:grid-cols-4 gap-3 mt-6">
+          <template x-for="m in metrics" :key="m.k">
+            <div class="panel-raised p-3">
+              <div class="mono text-[10px]" style="color:var(--steel-400)" x-text="m.k"></div>
+              <div class="text-xl font-black mt-1" :style="`color:${m.c}`" x-text="m.v"></div>
+              <div class="text-[10.5px] mt-0.5" style="color:var(--steel-400)" x-text="m.s"></div>
+            </div>
+          </template>
+        </div>
+      </div>
+
+      <div class="grid md:grid-cols-3 gap-4">
+        <div class="panel p-5 md:col-span-2">
+          <h3 class="font-bold text-[13px] mb-3" style="color:var(--steel-100)">Mandatory Capability Matrix</h3>
+          <div class="grid sm:grid-cols-2 gap-2">
+            <template x-for="c in capabilities" :key="c.t">
+              <div class="panel-raised p-3 flex gap-3">
+                <div class="w-8 h-8 rounded shrink-0 flex items-center justify-center text-[14px]"
+                  :style="`background:${c.bg};color:${c.fg}`" x-text="c.icon"></div>
+                <div>
+                  <div class="text-[12.5px] font-semibold" style="color:var(--steel-100)" x-text="c.t"></div>
+                  <div class="text-[11px]" style="color:var(--steel-400)" x-text="c.d"></div>
+                </div>
+              </div>
+            </template>
+          </div>
+        </div>
+        <div class="panel p-5">
+          <h3 class="font-bold text-[13px] mb-3" style="color:var(--steel-100)">Delivery Roadmap</h3>
+          <div class="space-y-3">
+            <template x-for="p in phases" :key="p.n">
+              <div class="flex gap-3">
+                <div class="flex flex-col items-center">
+                  <div class="w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold"
+                    :style="`background:${p.c};color:var(--ink-900)`" x-text="p.n"></div>
+                  <div class="w-px flex-1" style="background:var(--ink-600)"></div>
+                </div>
+                <div class="pb-2">
+                  <div class="text-[12px] font-semibold" style="color:var(--steel-100)" x-text="p.t"></div>
+                  <div class="text-[10.5px]" style="color:var(--steel-400)" x-text="p.d"></div>
+                </div>
+              </div>
+            </template>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ 1. ARCHITECTURE MAP ============ -->
+    <section x-show="active==='architecture'" class="fade-in space-y-5">
+      <div class="flex items-end justify-between flex-wrap gap-2">
+        <div>
+          <span class="tag" style="background:var(--cyan-dim);color:var(--cyan)">01 · SYSTEM MAP</span>
+          <h2 class="text-xl font-black mt-2" style="color:var(--steel-100)">System Architecture Map</h2>
+          <p class="text-[12.5px] mt-1" style="color:var(--steel-400)">Headless topology: decoupled storefront/admin heads over a domain-service mesh with an event backbone.</p>
+        </div>
+      </div>
+
+      <!-- Layered diagram -->
+      <div class="panel p-5 space-y-4">
+        <template x-for="layer in archLayers" :key="layer.name">
+          <div>
+            <div class="flex items-center gap-2 mb-2">
+              <span class="mono text-[10px] px-2 py-0.5 rounded" :style="`background:${layer.c}22;color:${layer.c};border:1px solid ${layer.c}55`" x-text="layer.tier"></span>
+              <span class="text-[12px] font-bold" style="color:var(--steel-100)" x-text="layer.name"></span>
+              <span class="text-[11px]" style="color:var(--steel-400)" x-text="'— '+layer.note"></span>
+            </div>
+            <div class="grid gap-2" :style="`grid-template-columns:repeat(auto-fit,minmax(150px,1fr))`">
+              <template x-for="node in layer.nodes" :key="node.n">
+                <div class="flow-node">
+                  <div class="text-[12px] font-semibold" style="color:var(--steel-100)" x-text="node.n"></div>
+                  <div class="text-[10.5px] mt-0.5" style="color:var(--steel-400)" x-text="node.d"></div>
+                </div>
+              </template>
+            </div>
+          </div>
+        </template>
+        <div class="flex items-center justify-center gap-3 pt-2 text-[11px]" style="color:var(--steel-400)">
+          <span class="flow-arrow">↓</span> unidirectional flow · CQRS reads via projection cache · writes via command bus <span class="flow-arrow">↓</span>
+        </div>
+      </div>
+
+      <div class="grid md:grid-cols-3 gap-4">
+        <div class="panel p-4">
+          <h3 class="text-[12px] font-bold mb-2" style="color:var(--amber)">Communication Patterns</h3>
+          <ul class="text-[11.5px] space-y-1.5" style="color:var(--steel-300)">
+            <li>• <b>Sync:</b> GraphQL BFF per head (storefront / admin / vendor).</li>
+            <li>• <b>Async:</b> Event bus (Kafka/NATS) for RFQ state, audit, bulk jobs.</li>
+            <li>• <b>Realtime:</b> SSE channel for bulk-op progress + RFQ updates.</li>
+            <li>• <b>Search:</b> OpenSearch projection for specs matrices.</li>
+          </ul>
+        </div>
+        <div class="panel p-4">
+          <h3 class="text-[12px] font-bold mb-2" style="color:var(--cyan)">Cross-Cutting Concerns</h3>
+          <ul class="text-[11.5px] space-y-1.5" style="color:var(--steel-300)">
+            <li>• API Gateway → authN, tenant resolution, rate-limit.</li>
+            <li>• Policy Engine (OPA/Casbin) → Micro-RBAC field masking.</li>
+            <li>• Audit interceptor → immutable append-only log.</li>
+            <li>• Idempotency keys on all mutating endpoints.</li>
+          </ul>
+        </div>
+        <div class="panel p-4">
+          <h3 class="text-[12px] font-bold mb-2" style="color:var(--violet)">Tenancy Model</h3>
+          <ul class="text-[11.5px] space-y-1.5" style="color:var(--steel-300)">
+            <li>• <b>Row-Level Security</b> via <span class="mono">tenant_id</span> on all vendor tables.</li>
+            <li>• Shared schema + RLS policies (pooled multi-tenant).</li>
+            <li>• Per-vendor object-storage prefix isolation.</li>
+            <li>• Buyer org = sub-tenant with its own user graph.</li>
+          </ul>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ 2. DB SCHEMA ============ -->
+    <section x-show="active==='schema'" class="fade-in space-y-5">
+      <div>
+        <span class="tag" style="background:var(--green-dim);color:var(--green)">02 · DATA LAYER</span>
+        <h2 class="text-xl font-black mt-2" style="color:var(--steel-100)">Database Schema — High-Level Logic</h2>
+        <p class="text-[12.5px] mt-1" style="color:var(--steel-400)">Domain-aligned aggregates. Every vendor-scoped table carries <span class="mono">tenant_id</span> enforced by RLS.</p>
+      </div>
+
+      <div class="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
+        <template x-for="tbl in schema" :key="tbl.name">
+          <div class="panel-raised overflow-hidden">
+            <div class="flex items-center justify-between px-3 py-2 border-b" style="border-color:var(--ink-500);background:var(--ink-800)">
+              <span class="mono text-[12px] font-bold" style="color:var(--steel-100)" x-text="tbl.name"></span>
+              <span class="tag" :style="`background:${tbl.c}22;color:${tbl.c}`" x-text="tbl.domain"></span>
+            </div>
+            <table class="w-full text-[11px]">
+              <template x-for="col in tbl.cols" :key="col.n">
+                <tr class="border-b" style="border-color:var(--slate-line)">
+                  <td class="px-3 py-1.5 mono" :style="col.pk?'color:var(--amber);font-weight:700':(col.fk?'color:var(--cyan)':'color:var(--steel-200)')" x-text="col.n"></td>
+                  <td class="px-3 py-1.5 mono text-[10px] text-end" style="color:var(--steel-400)" x-text="col.t"></td>
+                </tr>
+              </template>
+            </table>
+          </div>
+        </template>
+      </div>
+
+      <div class="panel p-4">
+        <h3 class="text-[12px] font-bold mb-2" style="color:var(--steel-100)">Key Relationships &amp; Invariants</h3>
+        <div class="grid md:grid-cols-2 gap-2 text-[11.5px]" style="color:var(--steel-300)">
+          <div>• <span class="mono">rfq</span> 1—N <span class="mono">sub_rfq</span> (one per vendor) → solves multi-vendor deadlock.</div>
+          <div>• <span class="mono">product.status</span> ∈ {draft, in_review, published, archived}.</div>
+          <div>• <span class="mono">role_field_policy</span> drives runtime field masking (Micro-RBAC).</div>
+          <div>• <span class="mono">audit_log</span> is append-only, hash-chained (prev_hash).</div>
+          <div>• <span class="mono">impersonation_session</span> stores actor + subject + scope caps.</div>
+          <div>• <span class="mono">bulk_job</span> → N <span class="mono">bulk_job_item</span> streamed via SSE.</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ 3. UI/UX & TOKENS ============ -->
+    <section x-show="active==='design'" class="fade-in space-y-5">
+      <div>
+        <span class="tag" style="background:var(--amber-dim);color:var(--amber)">03 · DESIGN SYSTEM</span>
+        <h2 class="text-xl font-black mt-2" style="color:var(--steel-100)">UI/UX Engineering Plan &amp; Token Structure</h2>
+        <p class="text-[12.5px] mt-1" style="color:var(--steel-400)">Industrial palette. Zero hardcoded colors — everything resolves from centralized design tokens (this file is the live proof).</p>
+      </div>
+
+      <div class="grid lg:grid-cols-2 gap-4">
+        <div class="panel p-4">
+          <h3 class="text-[12px] font-bold mb-3" style="color:var(--steel-100)">Color Tokens (Industrial Palette)</h3>
+          <div class="grid grid-cols-2 sm:grid-cols-3 gap-2">
+            <template x-for="tok in tokens" :key="tok.name">
+              <div class="panel-raised p-2 flex items-center gap-2">
+                <div class="w-8 h-8 rounded shrink-0 border" style="border-color:var(--ink-500)" :style="`background:${tok.val}`"></div>
+                <div class="min-w-0">
+                  <div class="mono text-[10px] truncate" style="color:var(--steel-200)" x-text="tok.name"></div>
+                  <div class="mono text-[9px]" style="color:var(--steel-400)" x-text="tok.val"></div>
+                </div>
+              </div>
+            </template>
+          </div>
+        </div>
+        <div class="space-y-4">
+          <div class="panel p-4">
+            <h3 class="text-[12px] font-bold mb-3" style="color:var(--steel-100)">Semantic Status Tokens</h3>
+            <div class="flex flex-wrap gap-2">
+              <span class="tag" style="background:var(--green-dim);color:var(--green)">PUBLISHED</span>
+              <span class="tag" style="background:var(--amber-dim);color:var(--amber)">DRAFT</span>
+              <span class="tag" style="background:var(--cyan-dim);color:var(--cyan)">IN REVIEW</span>
+              <span class="tag" style="background:var(--red-dim);color:var(--red)">REJECTED</span>
+              <span class="tag" style="background:#1a2f4d;color:var(--blue)">QUOTED</span>
+              <span class="tag" style="background:#2a2450;color:var(--violet)">ROUTED</span>
+            </div>
+            <h4 class="text-[11px] font-bold mt-4 mb-2" style="color:var(--steel-300)">Spacing Scale (data-dense)</h4>
+            <div class="flex items-end gap-2">
+              <template x-for="s in [4,8,12,16,24]" :key="s">
+                <div class="text-center">
+                  <div style="background:var(--cyan)" :style="`width:${s}px;height:${s}px`"></div>
+                  <div class="mono text-[9px] mt-1" style="color:var(--steel-400)" x-text="s"></div>
+                </div>
+              </template>
+            </div>
+          </div>
+          <div class="panel p-4">
+            <h3 class="text-[12px] font-bold mb-2" style="color:var(--steel-100)">UI Engineering Principles</h3>
+            <ul class="text-[11.5px] space-y-1.5" style="color:var(--steel-300)">
+              <li>• <b>Headless components:</b> unstyled primitives (Radix/Headless UI) + token-driven skin.</li>
+              <li>• <b>Data-density-first:</b> compact grids, sticky headers, virtualized rows.</li>
+              <li>• <b>Specs matrices:</b> comparison tables for machinery/ink SKUs.</li>
+              <li>• <b>No retail whitespace:</b> B2B operator screens, not consumer shop.</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+
+      <!-- Data grid demo -->
+      <div class="panel overflow-hidden">
+        <div class="px-4 py-2.5 border-b flex items-center justify-between" style="border-color:var(--ink-600)">
+          <h3 class="text-[12px] font-bold" style="color:var(--steel-100)">Live Pattern — B2B Data Grid + Specs Matrix</h3>
+          <div class="flex items-center gap-2 text-[10px]" style="color:var(--steel-400)">
+            <span class="chip">Virtualized</span><span class="chip">Field-masked</span>
+          </div>
+        </div>
+        <div class="overflow-x-auto" style="max-height:280px">
+          <table class="dg">
+            <thead>
+              <tr>
+                <th>SKU</th><th>Product</th><th>Type</th><th>Print Width</th><th>Speed</th>
+                <th>Cost <span style="color:var(--amber)">🔒RBAC</span></th><th>Stock</th><th>Status</th>
+              </tr>
+            </thead>
+            <tbody>
+              <template x-for="r in gridDemo" :key="r.sku">
+                <tr>
+                  <td class="mono" style="color:var(--cyan)" x-text="r.sku"></td>
+                  <td style="color:var(--steel-100)" x-text="r.name"></td>
+                  <td x-text="r.type"></td>
+                  <td class="mono" x-text="r.width"></td>
+                  <td class="mono" x-text="r.speed"></td>
+                  <td class="mono" x-text="showCost?r.cost:'••••••'" :style="showCost?'color:var(--amber)':'color:var(--steel-400)'"></td>
+                  <td class="mono" x-text="r.stock"></td>
+                  <td><span class="tag" :style="statusStyle(r.status)" x-text="r.status"></span></td>
+                </tr>
+              </template>
+            </tbody>
+          </table>
+        </div>
+        <div class="px-4 py-2 border-t flex items-center gap-3 text-[11px]" style="border-color:var(--ink-600)">
+          <label class="flex items-center gap-2 cursor-pointer">
+            <input type="checkbox" x-model="showCost" class="accent-amber-500">
+            <span style="color:var(--steel-300)">Toggle <b>Cost</b> field (simulate Micro-RBAC field policy)</span>
+          </label>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ 4. EPICS & TASKS ============ -->
+    <section x-show="active==='epics'" class="fade-in space-y-5">
+      <div class="flex items-end justify-between flex-wrap gap-3">
+        <div>
+          <span class="tag" style="background:#2a2450;color:var(--violet)">04 · EXECUTION</span>
+          <h2 class="text-xl font-black mt-2" style="color:var(--steel-100)">Project Breakdown — Epics &amp; Tasks</h2>
+          <p class="text-[12.5px] mt-1" style="color:var(--steel-400)">Engineering-leveraged decomposition. Click an epic to expand its task ledger.</p>
+        </div>
+        <div class="flex gap-2">
+          <button @click="epicFilter='all'" class="text-[11px] px-3 py-1.5 rounded" :style="epicFilter==='all'?'background:var(--amber);color:var(--ink-900)':'background:var(--ink-700);color:var(--steel-300);border:1px solid var(--ink-500)'">All</button>
+          <template x-for="pr in ['P0','P1','P2']" :key="pr">
+            <button @click="epicFilter=pr" class="text-[11px] px-3 py-1.5 rounded" :style="epicFilter===pr?'background:var(--amber);color:var(--ink-900)':'background:var(--ink-700);color:var(--steel-300);border:1px solid var(--ink-500)'" x-text="pr"></button>
+          </template>
+        </div>
+      </div>
+
+      <div class="space-y-3">
+        <template x-for="ep in filteredEpics()" :key="ep.id">
+          <details class="panel overflow-hidden" :open="ep.id==='EP-01'">
+            <summary class="flex items-center gap-3 px-4 py-3 select-none">
+              <span class="mono text-[11px] px-2 py-1 rounded" style="background:var(--ink-700);color:var(--cyan)" x-text="ep.id"></span>
+              <span class="flex-1 min-w-0">
+                <span class="text-[13.5px] font-bold" style="color:var(--steel-100)" x-text="ep.title"></span>
+                <span class="block text-[11px]" style="color:var(--steel-400)" x-text="ep.goal"></span>
+              </span>
+              <span class="tag" :style="prio(ep.prio)" x-text="ep.prio"></span>
+              <span class="mono text-[11px] hidden sm:inline" style="color:var(--steel-400)" x-text="ep.tasks.length+' tasks · '+ep.points+'pt'"></span>
+              <span class="text-[16px]" style="color:var(--steel-400)">⌄</span>
+            </summary>
+            <div class="border-t" style="border-color:var(--ink-600)">
+              <table class="dg">
+                <thead>
+                  <tr><th style="width:80px">ID</th><th>Task</th><th style="width:110px">Layer</th><th style="width:70px">Pts</th></tr>
+                </thead>
+                <tbody>
+                  <template x-for="t in ep.tasks" :key="t.id">
+                    <tr>
+                      <td class="mono" style="color:var(--steel-400)" x-text="t.id"></td>
+                      <td>
+                        <span style="color:var(--steel-100)" x-text="t.t"></span>
+                        <template x-if="t.ac">
+                          <span class="block text-[10.5px] mt-0.5" style="color:var(--steel-400)" x-text="'AC: '+t.ac"></span>
+                        </template>
+                      </td>
+                      <td><span class="chip" x-text="t.layer"></span></td>
+                      <td class="mono" style="color:var(--cyan)" x-text="t.p"></td>
+                    </tr>
+                  </template>
+                </tbody>
+              </table>
+            </div>
+          </details>
+        </template>
+      </div>
+    </section>
+
+    <!-- ============ 5. EDGE CASES ============ -->
+    <section x-show="active==='edge'" class="fade-in space-y-5">
+      <div>
+        <span class="tag" style="background:var(--red-dim);color:var(--red)">05 · HARD PROBLEMS</span>
+        <h2 class="text-xl font-black mt-2" style="color:var(--steel-100)">Edge Cases &amp; Solutions Analysis</h2>
+        <p class="text-[12.5px] mt-1" style="color:var(--steel-400)">The three strategic engineering problems and their resolved architectures.</p>
+      </div>
+
+      <template x-for="(ec,i) in edgeCases" :key="ec.id">
+        <div class="panel overflow-hidden">
+          <div class="px-4 py-3 border-b flex items-start gap-3" style="border-color:var(--ink-600);background:var(--ink-700)">
+            <span class="w-7 h-7 rounded-full shrink-0 flex items-center justify-center font-black text-[12px]" style="background:var(--red);color:var(--ink-900)" x-text="i+1"></span>
+            <div>
+              <div class="text-[14px] font-bold" style="color:var(--steel-100)" x-text="ec.title"></div>
+              <div class="text-[11.5px] mt-0.5" style="color:var(--steel-400)" x-text="ec.problem"></div>
+            </div>
+          </div>
+          <div class="grid md:grid-cols-2 gap-0">
+            <div class="p-4 border-e" style="border-color:var(--ink-600)">
+              <h4 class="text-[11px] font-bold mb-2" style="color:var(--green)">✔ SOLUTION ARCHITECTURE</h4>
+              <ul class="text-[12px] space-y-2" style="color:var(--steel-300)">
+                <template x-for="s in ec.solution" :key="s">
+                  <li class="flex gap-2"><span style="color:var(--green)">▸</span><span x-text="s"></span></li>
+                </template>
+              </ul>
+            </div>
+            <div class="p-4">
+              <h4 class="text-[11px] font-bold mb-2" style="color:var(--cyan)">⚙ IMPLEMENTATION FLOW</h4>
+              <div class="space-y-2">
+                <template x-for="(f,fi) in ec.flow" :key="fi">
+                  <div class="flow-node text-[11.5px]" x-text="(fi+1)+'. '+f"></div>
+                </template>
+              </div>
+            </div>
+          </div>
+        </div>
+      </template>
+    </section>
+
+  </main>
+</div>
+
+<footer class="border-t px-6 py-4 text-center mono text-[10px]" style="border-color:var(--ink-600);color:var(--steel-400)">
+  PRINTFORGE·B2B · SINGLE-FILE ARCHITECTURE COMMAND CENTER · RFQ-DRIVEN · MULTI-TENANT · MICRO-RBAC · TOKEN-GOVERNED UI
+</footer>
+
+<script>
+function app(){
+  return {
+    active:'overview',
+    epicFilter:'all',
+    showCost:false,
+    nav:[
+      {id:'overview',label:'Overview',icon:'◈'},
+      {id:'architecture',label:'Architecture Map',icon:'⬡'},
+      {id:'schema',label:'DB Schema Logic',icon:'▤'},
+      {id:'design',label:'UI/UX & Tokens',icon:'◐'},
+      {id:'epics',label:'Epics & Tasks',icon:'▸'},
+      {id:'edge',label:'Edge Cases',icon:'⚠'},
+    ],
+    go(id){this.active=id;window.scrollTo({top:0,behavior:'smooth'})},
+    statusStyle(s){
+      const m={'PUBLISHED':'background:var(--green-dim);color:var(--green)','DRAFT':'background:var(--amber-dim);color:var(--amber)','IN REVIEW':'background:var(--cyan-dim);color:var(--cyan)','QUOTED':'background:#1a2f4d;color:var(--blue)'};
+      return m[s]||'background:var(--ink-600);color:var(--steel-300)';
+    },
+    prio(p){return {P0:'background:var(--red-dim);color:var(--red)',P1:'background:var(--amber-dim);color:var(--amber)',P2:'background:var(--cyan-dim);color:var(--cyan)'}[p]},
+
+    metrics:[
+      {k:'DOMAIN SERVICES',v:'11',s:'bounded contexts',c:'var(--amber)'},
+      {k:'EPICS',v:'9',s:'delivery streams',c:'var(--cyan)'},
+      {k:'TASKS',v:'52',s:'estimated backlog',c:'var(--green)'},
+      {k:'EDGE CASES',v:'3',s:'resolved / high-risk',c:'var(--violet)'},
+    ],
+    get stats(){return {epics:this.epics.length,tasks:this.epics.reduce((a,e)=>a+e.tasks.length,0),edge:this.edgeCases.length}},
+
+    capabilities:[
+      {icon:'🔐',t:'Micro-RBAC',d:'Dynamic field-level masking (cost/stock) per role.',bg:'var(--amber-dim)',fg:'var(--amber)'},
+      {icon:'🏢',t:'Vendor Isolation',d:'Multi-tenant sub-dashboards, RLS-enforced.',bg:'var(--cyan-dim)',fg:'var(--cyan)'},
+      {icon:'📝',t:'Draft/Publish',d:'Data-entry forced into review gate.',bg:'var(--green-dim)',fg:'var(--green)'},
+      {icon:'📜',t:'Immutable Audit',d:'Hash-chained append-only API log.',bg:'#2a2450',fg:'var(--violet)'},
+      {icon:'🎭',t:'Impersonation',d:'Login-as with scoped capability caps.',bg:'var(--red-dim)',fg:'var(--red)'},
+      {icon:'👥',t:'B2B Buyer Roles',d:'Buyer org creates sub-users (buyer/finance).',bg:'#1a2f4d',fg:'var(--blue)'},
+      {icon:'🔀',t:'Dynamic RFQ Routing',d:'Rule engine routes to sales reps.',bg:'var(--cyan-dim)',fg:'var(--cyan)'},
+      {icon:'⚡',t:'Bulk Engine',d:'Thousands of SKUs/prices via job stream.',bg:'var(--amber-dim)',fg:'var(--amber)'},
+    ],
+    phases:[
+      {n:1,t:'Foundation',d:'Gateway, tenancy, RBAC, audit backbone',c:'var(--amber)'},
+      {n:2,t:'Catalog & Vendors',d:'Products, draft/publish, vendor consoles',c:'var(--cyan)'},
+      {n:3,t:'RFQ Engine',d:'State machine, sub-RFQ split, routing',c:'var(--green)'},
+      {n:4,t:'Scale & Ops',d:'Bulk engine, SSE, impersonation, buyer roles',c:'var(--violet)'},
+    ],
+
+    archLayers:[
+      {tier:'HEADS',name:'Presentation / Heads',c:'#f5a623',note:'decoupled clients over BFFs',nodes:[
+        {n:'Storefront Head',d:'Buyer-facing catalog + RFQ builder'},
+        {n:'Admin Console',d:'Super-admin, RBAC, audit, routing rules'},
+        {n:'Vendor Console',d:'Isolated per-tenant product/RFQ mgmt'},
+        {n:'Buyer Org Portal',d:'Sub-user & approval management'},
+      ]},
+      {tier:'BFF',name:'API Gateway / BFF',c:'#2dd4bf',note:'authN, tenant resolve, rate-limit, GraphQL',nodes:[
+        {n:'GraphQL BFF',d:'Per-head schema aggregation'},
+        {n:'Policy Engine',d:'OPA/Casbin field masking'},
+        {n:'Rate Limiter',d:'Token bucket per tenant/user'},
+        {n:'SSE Hub',d:'Realtime bulk/RFQ push'},
+      ]},
+      {tier:'DOMAIN',name:'Domain Services (Bounded Contexts)',c:'#8b7cf6',note:'CQRS + event-sourced where needed',nodes:[
+        {n:'Catalog Svc',d:'Products, specs, draft/publish'},
+        {n:'RFQ Svc',d:'State machine + sub-RFQ orchestration'},
+        {n:'Pricing Svc',d:'Tiered/contract pricing'},
+        {n:'Identity Svc',d:'RBAC, buyer roles, impersonation'},
+        {n:'Vendor Svc',d:'Tenant lifecycle & isolation'},
+        {n:'Bulk Svc',d:'Job queue + streaming workers'},
+        {n:'Audit Svc',d:'Immutable hash-chained log'},
+        {n:'Routing Svc',d:'RFQ rule evaluation'},
+      ]},
+      {tier:'DATA',name:'Data & Event Backbone',c:'#34d399',note:'persistence + async spine',nodes:[
+        {n:'PostgreSQL (RLS)',d:'Transactional, tenant-scoped'},
+        {n:'OpenSearch',d:'Specs matrix / faceted search'},
+        {n:'Event Bus',d:'Kafka/NATS — state, audit, jobs'},
+        {n:'Redis',d:'Rate-limit, sessions, job progress'},
+        {n:'Object Store',d:'Per-vendor prefixed assets'},
+      ]},
+    ],
+
+    schema:[
+      {name:'tenants',domain:'VENDOR',c:'#2dd4bf',cols:[{n:'id',t:'uuid',pk:1},{n:'name',t:'text'},{n:'status',t:'enum'},{n:'plan',t:'text'},{n:'created_at',t:'ts'}]},
+      {name:'users',domain:'IDENTITY',c:'#f5a623',cols:[{n:'id',t:'uuid',pk:1},{n:'tenant_id',t:'uuid',fk:1},{n:'org_id',t:'uuid',fk:1},{n:'role',t:'enum'},{n:'email',t:'citext'}]},
+      {name:'role_field_policy',domain:'IDENTITY',c:'#f5a623',cols:[{n:'id',t:'uuid',pk:1},{n:'role',t:'enum'},{n:'entity',t:'text'},{n:'field',t:'text'},{n:'access',t:'enum'}]},
+      {name:'buyer_orgs',domain:'B2B',c:'#4d94ff',cols:[{n:'id',t:'uuid',pk:1},{n:'name',t:'text'},{n:'credit_limit',t:'num'},{n:'approval_flow',t:'jsonb'}]},
+      {name:'products',domain:'CATALOG',c:'#34d399',cols:[{n:'id',t:'uuid',pk:1},{n:'tenant_id',t:'uuid',fk:1},{n:'sku',t:'text'},{n:'status',t:'enum'},{n:'specs',t:'jsonb'},{n:'cost',t:'num'}]},
+      {name:'product_revisions',domain:'CATALOG',c:'#34d399',cols:[{n:'id',t:'uuid',pk:1},{n:'product_id',t:'uuid',fk:1},{n:'payload',t:'jsonb'},{n:'state',t:'enum'},{n:'reviewer_id',t:'uuid',fk:1}]},
+      {name:'rfq',domain:'RFQ',c:'#8b7cf6',cols:[{n:'id',t:'uuid',pk:1},{n:'org_id',t:'uuid',fk:1},{n:'status',t:'enum'},{n:'agg_state',t:'enum'},{n:'created_by',t:'uuid',fk:1}]},
+      {name:'sub_rfq',domain:'RFQ',c:'#8b7cf6',cols:[{n:'id',t:'uuid',pk:1},{n:'rfq_id',t:'uuid',fk:1},{n:'tenant_id',t:'uuid',fk:1},{n:'state',t:'enum'},{n:'quoted_total',t:'num'}]},
+      {name:'rfq_line_items',domain:'RFQ',c:'#8b7cf6',cols:[{n:'id',t:'uuid',pk:1},{n:'sub_rfq_id',t:'uuid',fk:1},{n:'product_id',t:'uuid',fk:1},{n:'qty',t:'int'},{n:'unit_price',t:'num'}]},
+      {name:'routing_rules',domain:'ROUTING',c:'#2dd4bf',cols:[{n:'id',t:'uuid',pk:1},{n:'tenant_id',t:'uuid',fk:1},{n:'conditions',t:'jsonb'},{n:'target_rep',t:'uuid',fk:1},{n:'priority',t:'int'}]},
+      {name:'impersonation_session',domain:'IDENTITY',c:'#ef4444',cols:[{n:'id',t:'uuid',pk:1},{n:'actor_id',t:'uuid',fk:1},{n:'subject_id',t:'uuid',fk:1},{n:'caps',t:'jsonb'},{n:'expires_at',t:'ts'}]},
+      {name:'bulk_job',domain:'BULK',c:'#f5a623',cols:[{n:'id',t:'uuid',pk:1},{n:'tenant_id',t:'uuid',fk:1},{n:'type',t:'enum'},{n:'total',t:'int'},{n:'done',t:'int'},{n:'status',t:'enum'}]},
+      {name:'audit_log',domain:'AUDIT',c:'#8b7cf6',cols:[{n:'id',t:'uuid',pk:1},{n:'actor_id',t:'uuid',fk:1},{n:'action',t:'text'},{n:'diff',t:'jsonb'},{n:'prev_hash',t:'text'},{n:'hash',t:'text'}]},
+    ],
+
+    tokens:[
+      {name:'--ink-900',val:'#0d1117'},{name:'--ink-800',val:'#151b23'},{name:'--ink-700',val:'#1c242e'},
+      {name:'--ink-600',val:'#26313d'},{name:'--steel-400',val:'#5b6b7d'},{name:'--steel-200',val:'#b7c2ce'},
+      {name:'--amber',val:'#f5a623'},{name:'--cyan',val:'#2dd4bf'},{name:'--violet',val:'#8b7cf6'},
+      {name:'--green',val:'#34d399'},{name:'--red',val:'#ef4444'},{name:'--blue',val:'#4d94ff'},
+    ],
+
+    gridDemo:[
+      {sku:'MCH-4820',name:'HP Latex 800 Printer',type:'Hardware',width:'1.6m',speed:'110 m²/h',cost:'$42,500',stock:'7',status:'PUBLISHED'},
+      {sku:'INK-EC-05',name:'Eco-Solvent Bulk 20L',type:'Consumable',width:'—',speed:'—',cost:'$310',stock:'240',status:'PUBLISHED'},
+      {sku:'MCH-9931',name:'Roland VG3-640 Cutter',type:'Hardware',width:'1.6m',speed:'95 m²/h',cost:'$28,900',stock:'3',status:'DRAFT'},
+      {sku:'SFW-RIP-12',name:'Onyx RIP Suite (License)',type:'Software',width:'—',speed:'—',cost:'$1,850',stock:'∞',status:'IN REVIEW'},
+      {sku:'INK-UV-12',name:'UV Curable Ink 5L',type:'Consumable',width:'—',speed:'—',cost:'$540',stock:'88',status:'PUBLISHED'},
+      {sku:'MCH-2201',name:'Mimaki JV300 Plus',type:'Hardware',width:'1.9m',speed:'105 m²/h',cost:'$19,200',stock:'0',status:'QUOTED'},
+    ],
+
+    epics:[
+      {id:'EP-01',title:'Platform Foundation & Multi-Tenancy',goal:'Gateway, tenant resolution, RLS, audit spine.',prio:'P0',points:34,tasks:[
+        {id:'T-101',t:'API Gateway with tenant resolution middleware',ac:'tenant_id injected into request context from subdomain/JWT',layer:'Gateway',p:5},
+        {id:'T-102',t:'PostgreSQL Row-Level Security policies per tenant table',ac:'cross-tenant read returns 0 rows in pen-test',layer:'Data',p:8},
+        {id:'T-103',t:'GraphQL BFF scaffolding (3 heads)',layer:'BFF',p:5},
+        {id:'T-104',t:'Immutable hash-chained audit interceptor',ac:'each log row references prev_hash; tamper breaks chain',layer:'Audit',p:8},
+        {id:'T-105',t:'Idempotency-key handling on mutations',layer:'BFF',p:3},
+        {id:'T-106',t:'Event bus provisioning (Kafka/NATS topics)',layer:'Data',p:5},
+      ]},
+      {id:'EP-02',title:'Micro-RBAC & Field-Level Policy Engine',goal:'Dynamic per-role masking of cost/stock/etc.',prio:'P0',points:29,tasks:[
+        {id:'T-201',t:'role_field_policy schema + admin CRUD',layer:'Identity',p:5},
+        {id:'T-202',t:'OPA/Casbin integration in BFF resolver layer',ac:'restricted fields stripped before serialization',layer:'BFF',p:8},
+        {id:'T-203',t:'Admin UI: field-visibility matrix editor',layer:'Admin UI',p:8},
+        {id:'T-204',t:'Runtime field masking demo (grid cost toggle)',layer:'Storefront',p:5},
+        {id:'T-205',t:'Policy cache invalidation on rule change',layer:'BFF',p:3},
+      ]},
+      {id:'EP-03',title:'Catalog & Draft/Publish Workflow',goal:'Products, specs, forced review gate.',prio:'P1',points:31,tasks:[
+        {id:'T-301',t:'Product + product_revisions aggregate',layer:'Catalog',p:8},
+        {id:'T-302',t:'State machine: draft→in_review→published',ac:'data-entry role cannot publish directly',layer:'Catalog',p:8},
+        {id:'T-303',t:'Reviewer queue + diff viewer UI',layer:'Admin UI',p:8},
+        {id:'T-304',t:'Specs matrix editor (jsonb schema-validated)',layer:'Catalog',p:5},
+        {id:'T-305',t:'OpenSearch projection sync on publish',layer:'Data',p:2},
+      ]},
+      {id:'EP-04',title:'Vendor Isolation & Sub-Dashboards',goal:'Per-tenant consoles with strict isolation.',prio:'P1',points:26,tasks:[
+        {id:'T-401',t:'Vendor console shell (tenant-scoped nav)',layer:'Vendor UI',p:5},
+        {id:'T-402',t:'Vendor product management (RLS-bound)',layer:'Vendor UI',p:8},
+        {id:'T-403',t:'Vendor sub-RFQ inbox',layer:'Vendor UI',p:8},
+        {id:'T-404',t:'Per-vendor object-storage prefix isolation',layer:'Data',p:5},
+      ]},
+      {id:'EP-05',title:'RFQ Engine & Multi-Vendor State Machine',goal:'Deadlock-free RFQ split into sub-RFQs.',prio:'P0',points:42,tasks:[
+        {id:'T-501',t:'RFQ builder (buyer storefront)',layer:'Storefront',p:8},
+        {id:'T-502',t:'Auto-split parent RFQ into per-vendor sub-RFQs',ac:'each sub-RFQ independent state; no cross-lock',layer:'RFQ',p:13},
+        {id:'T-503',t:'Sub-RFQ state machine (open→quoted→accepted/rejected)',layer:'RFQ',p:8},
+        {id:'T-504',t:'Parent aggregation policy (partial-accept, all-or-nothing)',ac:'buyer configures acceptance strategy',layer:'RFQ',p:8},
+        {id:'T-505',t:'Saga/compensation for partial rejections',layer:'RFQ',p:5},
+      ]},
+      {id:'EP-06',title:'Dynamic RFQ Routing',goal:'Rule-based routing to sales reps.',prio:'P1',points:18,tasks:[
+        {id:'T-601',t:'routing_rules schema + priority evaluation',layer:'Routing',p:5},
+        {id:'T-602',t:'Condition builder UI (value, region, product-type)',layer:'Admin UI',p:8},
+        {id:'T-603',t:'Event-driven route-on-create hook',layer:'Routing',p:5},
+      ]},
+      {id:'EP-07',title:'B2B Buyer Org Roles & Approvals',goal:'Buyer orgs manage sub-users + approval flows.',prio:'P1',points:23,tasks:[
+        {id:'T-701',t:'buyer_orgs + sub-user provisioning',layer:'Identity',p:8},
+        {id:'T-702',t:'Roles: buyer / finance-manager / approver',layer:'Identity',p:5},
+        {id:'T-703',t:'Approval workflow (threshold-based)',ac:'RFQ over credit_limit needs finance approval',layer:'B2B',p:8},
+        {id:'T-704',t:'Buyer org portal UI',layer:'Buyer UI',p:2},
+      ]},
+      {id:'EP-08',title:'Bulk Operations Engine + SSE',goal:'Thousands of SKUs/prices w/o browser freeze.',prio:'P1',points:29,tasks:[
+        {id:'T-801',t:'bulk_job + bulk_job_item queue model',layer:'Bulk',p:5},
+        {id:'T-802',t:'Chunked upload + client-side rate limiter',ac:'UI stays responsive at 10k rows',layer:'Bulk UI',p:8},
+        {id:'T-803',t:'Streaming workers with backpressure',layer:'Bulk',p:8},
+        {id:'T-804',t:'SSE progress channel + live progress bar UI',layer:'Realtime',p:5},
+        {id:'T-805',t:'Partial-failure report + retry',layer:'Bulk',p:3},
+      ]},
+      {id:'EP-09',title:'Impersonation (Login-As) Security',goal:'Support views as user, blocked from financial acts.',prio:'P0',points:21,tasks:[
+        {id:'T-901',t:'impersonation_session w/ scoped capability caps',ac:'JWT carries act-as claim + denied-scopes',layer:'Identity',p:8},
+        {id:'T-902',t:'Financial-action guard middleware',ac:'impersonated session blocked from checkout/quote-accept',layer:'BFF',p:8},
+        {id:'T-903',t:'Persistent impersonation banner + full audit tag',layer:'Admin UI',p:5},
+      ]},
+    ],
+    filteredEpics(){return this.epicFilter==='all'?this.epics:this.epics.filter(e=>e.prio===this.epicFilter)},
+
+    edgeCases:[
+      {id:'ec1',title:'State Machine Consistency in Multi-Vendor RFQ Lifecycle',
+        problem:'An RFQ spanning multiple vendors — one approves, another rejects. How to avoid deadlock?',
+        solution:[
+          'Decompose the parent RFQ into independent Sub-RFQs (one per tenant) at creation. Each has its own isolated state machine — no shared lock, no deadlock.',
+          'Parent RFQ holds only an aggregate_state derived (never authored) from children via projection.',
+          'Buyer chooses an Acceptance Strategy: ALL_OR_NOTHING vs PARTIAL_ACCEPT. Strategy governs how the aggregate resolves.',
+          'A Saga coordinator handles compensation: if strategy=ALL_OR_NOTHING and one vendor rejects, accepted sub-RFQs are auto-reverted to quoted (compensating transaction).',
+          'Each sub-RFQ transition emits an event; the aggregator is eventually-consistent and idempotent.',
+        ],
+        flow:['Buyer submits multi-vendor RFQ','Engine fans out → Sub-RFQ per tenant','Vendors quote/accept/reject independently','Aggregator recomputes parent state from children','Strategy resolves partial states (Saga compensations if needed)']},
+      {id:'ec2',title:'Impersonation Security Loophole (Login-As)',
+        problem:'Support must see the exact UI as the user but must never trigger sensitive financial operations.',
+        solution:[
+          'Impersonation issues a distinct short-lived JWT with an act_as claim (subject) AND the original actor_id — both are always present and audited.',
+          'The token carries an explicit denied_scopes array (e.g. checkout, quote:accept, credit:modify, payout). Read scopes are inherited from the subject; write-financial scopes are stripped.',
+          'A Financial-Action Guard middleware rejects any mutation whose scope ∈ denied_scopes when impersonation flag is set — enforced server-side, never trusting the client.',
+          'UI renders 100% identically (data is read-as-subject), but action buttons render disabled with a lock reason from the same policy source.',
+          'Every request is stamped impersonated_by=actor_id in the immutable audit trail — full non-repudiation.',
+        ],
+        flow:['Support clicks Login-As → session created w/ caps','Short-lived JWT: act_as + denied_scopes','All reads resolve as subject (full UI parity)','Financial mutation → guard checks denied_scopes → 403','Audit log stamps actor + subject on every call']},
+      {id:'ec3',title:'Bulk Operations & Headless Overload',
+        problem:'Updating thousands of prices must not freeze the browser; progress must stream back live.',
+        solution:[
+          'Client never sends 10k rows in one call. A client-side rate limiter (token-bucket) chunks payloads (e.g. 250/batch) with concurrency caps, keeping the main thread free (parsing offloaded to a Web Worker).',
+          'Server enqueues one bulk_job with N bulk_job_items; streaming workers process with backpressure and per-item idempotency.',
+          'Server pushes progress via SSE (lighter than WS for one-way) — done/total, per-item errors, ETA — driving a live progress bar without polling.',
+          'Gateway rate-limiting uses per-tenant token buckets; 429s trigger exponential backoff on the client automatically.',
+          'On completion a partial-failure report is produced with one-click retry of only failed items.',
+        ],
+        flow:['CSV parsed in Web Worker (UI stays live)','Rate-limited chunked upload (token bucket)','Server creates bulk_job + items, enqueues','Workers process w/ backpressure + idempotency','SSE streams progress → live UI bar + failure report']},
+    ],
+
+    exportJSON(){
+      const data={
+        project:'PrintForge B2B Headless Commerce',
+        model:'RFQ-first · Multi-tenant · Micro-RBAC',
+        architecture:this.archLayers,
+        db_schema:this.schema,
+        design_tokens:this.tokens,
+        epics:this.epics,
+        edge_cases:this.edgeCases
+      };
+      const blob=new Blob([JSON.stringify(data,null,2)],{type:'application/json'});
+      const a=document.createElement('a');
+      a.href=URL.createObjectURL(blob);
+      a.download='printforge-b2b-architecture.json';
+      a.click();
+    },
+    printView(){window.print()}
+  }
+}
+</script>
+</body>
+</html>
